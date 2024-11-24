@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 문제 생성기</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .container {
+            margin-bottom: 20px;
+        }
+        
+        #passage {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 15px 0;
+            height: 200px;
+            overflow-y: auto;
+        }
+        
+        #apiKeyInput {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+        }
+        
+        .button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .button:hover {
+            background-color: #45a049;
+        }
+        
+        #questionContainer {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .options label {
+            display: block;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        
+        .explanation {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        #apiStatus {
+            margin-top: 10px;
+            padding: 10px;
+            display: none;
+        }
+
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .correct {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+
+        .incorrect {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>API Key 설정</h2>
+        <input type="password" id="apiKeyInput" placeholder="Gemini API Key를 입력하세요">
+        <button class="button" onclick="verifyApiKey()">API Key 저장</button>
+        <div id="apiStatus"></div>
+    </div>
+
+    <div class="container">
+        <h2>본문</h2>
+        <div id="passage">
+            Mental development consists of individuals increasingly mastering social codes and signals themselves, which they can master only in social situations with the support of more competent individuals, typically adults. In this sense, mental development consists of internalizing social patterns and gradually becoming a responsible actor among other responsible actors. In Denmark, the age of criminal responsibility is 15 years, which means that we then say that people have developed sufficient mental maturity to be accountable for their actions at this point. And at the age of 18 people are given the right to vote and are thereby formally included in the basic democratic process. I do not know whether these age boundaries are optimal, but it is clear that mental development takes place at different rates for different individuals, depending especially on the social and family environment they have been given. Therefore, having formal limits for responsibility from a specific age that apply to everyone is a somewhat questionable practice. But the question, of course, is whether it can be done any differently.
+        </div>
+    </div>
+
+    <button class="button" onclick="generateQuestion()">문제 생성하기</button>
+    <button class="button" onclick="generateQuestion()">문제 재생성</button>
+
+    <div id="questionContainer">
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        let apiKey = '';
+
+        async function verifyApiKey() {
+            const inputKey = document.getElementById('apiKeyInput').value;
+            const statusDiv = document.getElementById('apiStatus');
+            
+            if (!inputKey) {
+                showApiStatus('API Key를 입력해주세요.', false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${inputKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: "Test"
+                            }]
+                        }]
+                    })
+                });
+
+                if (response.ok) {
+                    apiKey = inputKey;
+                    showApiStatus('API Key가 확인되었습니다.', true);
+                } else {
+                    showApiStatus('잘못된 API Key입니다.', false);
+                }
+            } catch (error) {
+                showApiStatus('API Key 확인 중 오류가 발생했습니다.', false);
+            }
+        }
+
+        function showApiStatus(message, isSuccess) {
+            const statusDiv = document.getElementById('apiStatus');
+            statusDiv.style.display = 'block';
+            statusDiv.style.backgroundColor = isSuccess ? '#dff0d8' : '#f2dede';
+            statusDiv.style.color = isSuccess ? '#3c763d' : '#a94442';
+            statusDiv.textContent = message;
+        }
+
+        async function generateQuestion() {
+            if (!apiKey) {
+                alert('먼저 API Key를 저장해주세요.');
+                return;
+            }
+
+            const passage = document.getElementById('passage').innerText;
+            const prompt = `다음 본문을 읽고 4지선다형 문제를 1개만 만들어주세요. 다음 형식으로 답변해주세요:
+
+문제: [문제 내용]
+A) [보기1]
+B) [보기2]
+C) [보기3]
+D) [보기4]
+정답: [A/B/C/D]
+해설: [해설 내용]
+
+본문:
+${passage}`;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                const questionText = data.candidates[0].content.parts[0].text;
+                displayQuestion(parseQuestion(questionText));
+            } catch (error) {
+                console.error('Error:', error);
+                alert('문제 생성 중 오류가 발생했습니다.');
+            }
+        }
+
+        function parseQuestion(text) {
+            const lines = text.split('\n');
+            const question = {
+                text: '',
+                options: [],
+                correct: '',
+                explanation: ''
+            };
+
+            lines.forEach(line => {
+                if (line.startsWith('문제:')) question.text = line.replace('문제:', '').trim();
+                else if (line.match(/^[A-D]\)/)) question.options.push(line.trim());
+                else if (line.startsWith('정답:')) question.correct = line.replace('정답:', '').trim();
+                else if (line.startsWith('해설:')) question.explanation = line.replace('해설:', '').trim();
+            });
+
+            return question;
+        }
+
+        function displayQuestion(question) {
+            const container = document.getElementById('questionContainer');
+            container.innerHTML = `
+                <h3>${question.text}</h3>
+                <div class="options">
+                    ${question.options.map((option, i) => `
+                        <label>
+                            <input type="radio" name="answer" value="${'ABCD'[i]}">
+                            ${option}
+                        </label>
+                    `).join('')}
+                </div>
+                <button class="button" onclick="checkAnswer('${question.correct}', '${question.explanation}')">정답 확인</button>
+                <div id="result" class="result"></div>
+                <div class="explanation" id="explanation">${question.explanation}</div>
+            `;
+        }
+
+        function checkAnswer(correct, explanation) {
+            const selected = document.querySelector('input[name="answer"]:checked');
+            const resultDiv = document.getElementById('result');
+            const explanationDiv = document.getElementById('explanation');
+            
+            if (!selected) {
+                alert('답을 선택해주세요.');
+                return;
+            }
+            
+            const isCorrect = selected.value === correct;
+            resultDiv.textContent = isCorrect ? '정답입니다!' : `오답입니다. 정답은 ${correct}입니다.`;
+            resultDiv.className = `result ${isCorrect ? 'correct' : 'incorrect'}`;
+            resultDiv.style.display = 'block';
+            explanationDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
